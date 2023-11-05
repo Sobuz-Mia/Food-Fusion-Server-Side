@@ -4,8 +4,6 @@ var cors = require('cors');
 require('dotenv').config()
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const port = process.env.PORT || 5000;
-// community-food-sharing
-// WNRjdXpk3vzvaYG8
 
 // middleware
 app.use(cors());
