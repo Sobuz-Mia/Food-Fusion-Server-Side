@@ -26,18 +26,24 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
 
-    const featuresCollection = client.db('communityFoodDB').collection('allFeatures');
+    // const featuresCollection = client.db('communityFoodDB').collection('allFeatures');
     const foodsCollection = client.db('communityFoodDB').collection('foods');
+    const foodsRequestCollection = client.db('communityFoodDB').collection('requestCollection');
 
     app.get('/api/v1/all-features',async (req,res)=>{
         const cursor = featuresCollection.find();
         const result = await cursor.toArray();
         res.send(result)
     })
-    app.get('/api/v1/food-Details/:id',async(req,res)=>{
+    app.get('/api/v1/foods/:id',async(req,res)=>{
         const id = req.params.id;
         const query = { _id : new ObjectId(id)}
-        const result =await featuresCollection.findOne(query)
+        const result =await foodsCollection.findOne(query)
+        res.send(result)
+    })
+
+    app.get('/api/v1/foods',async(req,res)=>{
+        const result = await foodsCollection.find().toArray();
         res.send(result)
     })
 
@@ -45,6 +51,11 @@ async function run() {
         const food = req.body;
         console.log(food)
         const result = await foodsCollection.insertOne(food);
+        res.send(result)
+    })
+    app.post('/api/v1/request-foods',async(req,res)=>{
+        const food = req.body;
+        const result = await foodsRequestCollection.insertOne(food)
         res.send(result)
     })
     // Send a ping to confirm a successful connection
