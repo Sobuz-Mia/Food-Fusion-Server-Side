@@ -84,9 +84,14 @@ async function run() {
 
     // get my booking data form request collection
 
-    app.get("/api/v1/myRequest/food", async (req, res) => {
-      const email = req.query.email;
-      const query = { requesterEmail: email };
+    app.get("/api/v1/myRequest/food",tokenVerify, async (req, res) => {
+      if(req.query.email !== req.user.email){
+        return res.status(403).send({message:'Forbidden'})
+      }
+      let query = {}
+      if(req.query.email){
+        query = {requesterEmail:req.query.email}
+      }
       const result = await foodsRequestCollection.find(query).toArray();
       res.send(result);
     });
