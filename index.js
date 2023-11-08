@@ -2,12 +2,18 @@ const express = require("express");
 const app = express();
 var cors = require("cors");
 require("dotenv").config();
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser')
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 5000;
 
 // middleware
-app.use(cors());
+app.use(cors({
+  origin:['http://localhost:5173'],
+  credentials:true
+}));
 app.use(express.json());
+app.use(cookieParser());
 
 const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASS}@cluster0.sbw5eqf.mongodb.net/?retryWrites=true&w=majority`;
 
@@ -20,12 +26,28 @@ const client = new MongoClient(uri, {
   },
 });
 
+// middleware for verify token
+
+const tokenVerify = (req,res,next) =>{
+  const token = req.cookies?.access_token;
+  if(!token){
+    return res.status(401).send({message:'Unauthorized'})
+  }
+  jwt.verify(token,process.env.ACCESS_TOKEN,(error,decoded)=>{
+    if(error){
+      res.status(403).send({message: 'Forbidden'})
+    }
+    req.user = decoded;
+    next();
+  })
+}
+
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
 
-    
     const foodsCollection = client.db("communityFoodDB").collection("foods");
     const foodsRequestCollection = client
       .db("communityFoodDB")
@@ -35,7 +57,7 @@ async function run() {
     app.get("/api/v1/foods/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
-      const result = await foodsCollection.findOne(query);
+      const result = await foodsCollection.findOne(query);  
       res.send(result);
     });
     // get all foods and show ui
@@ -45,19 +67,30 @@ async function run() {
     });
 
     // manage my food request
-    app.get('/api/v1/manage/single-food',async(req,res)=>{
-        const email = req.query.email;
-        const query = {donarEmail:email}
-        const result = await foodsRequestCollection.find(query).toArray();
+    app.get("/api/v1/manage/single-food/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { food_id : id };
+        const result = await foodsRequestCollection.findOne(query)
         res.send(result);
-    })
-    // get specific food used query email
-    app.get("/api/v1/request-foods/", async (req, res) => {
-        const email = req.query.email;
-        const query = {requesterEmail:email}
+    
+    });
+    // get specific food for manage food of used query email
+    app.get("/api/v1/manage-foods/", async (req, res) => {
+      const email = req.query.email;
+      const query = { donarEmail: email };
+      const result = await foodsCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    // get my booking data form request collection
+
+    app.get("/api/v1/myRequest/food", async (req, res) => {
+      const email = req.query.email;
+      const query = { requesterEmail: email };
       const result = await foodsRequestCollection.find(query).toArray();
       res.send(result);
     });
+
     // get single food
     app.get("/api/v1/request-food/:id", async (req, res) => {
       const id = req.params.id;
@@ -65,12 +98,52 @@ async function run() {
       const result = await foodsRequestCollection.findOne(query);
       res.send(result);
     });
+
+    // jwt token generate
+
+    app.post('/api/vi/jwt',(req,res)=>{
+      const user = req.body;
+      console.log(user);
+      const token = jwt.sign(user,process.env.ACCESS_TOKEN,{
+        expiresIn:'1h'
+      });
+
+      res
+      .cookie('access_token',token,{
+        httpOnly:true,
+        secure:false,
+      })
+      .send({success:true})
+    })
+
     // foods item add
     app.post("/api/v1/foods", async (req, res) => {
       const food = req.body;
       const result = await foodsCollection.insertOne(food);
       res.send(result);
     });
+
+    // update status form manage route
+    app.patch("/api/v1/update-status/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const query = {food_id : id}
+      const status = req.body;
+      const updateStatus = {
+        $set: {
+          status: status.status,
+        },
+      };
+      const result = await foodsCollection.updateOne(
+        filter,
+        updateStatus
+      );
+      const foodStatus = await foodsRequestCollection.updateOne(query,updateStatus)
+      res.send({result,foodStatus});
+    });
+    // update status on foodsCollection
+
+ 
     // save data from request
     app.post("/api/v1/request-foods", async (req, res) => {
       const food = req.body;
@@ -81,7 +154,7 @@ async function run() {
     app.delete("/api/v1/delete/request-food/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
-      const result = await foodsRequestCollection.deleteOne(query);
+      const result = await foodsCollection.deleteOne(query);
       res.send(result);
     });
     // update request food
@@ -102,11 +175,10 @@ async function run() {
         },
       };
       const result = await foodsRequestCollection.updateOne(
-          filter,
-          updateDoc,
-          options
-          );
-          console.log(result)
+        filter,
+        updateDoc,
+        options
+      );
       res.send(result);
     });
     // Send a ping to confirm a successful connection
