@@ -63,7 +63,12 @@ async function run() {
     });
     // get all foods and show ui
     app.get("/api/v1/foods", async (req, res) => {
-      const result = await foodsCollection.find().toArray();
+      let query = {};
+      // const searchValue = req.query.search;
+      const searchValue = req.query.search ? req.query.search.toLowerCase() : '';
+      query.foodName = { $regex: new RegExp(searchValue, "i") };
+      console.log(searchValue)
+      const result = await foodsCollection.find(query).toArray();
       res.send(result);
     });
 
