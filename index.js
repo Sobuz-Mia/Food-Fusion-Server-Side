@@ -64,14 +64,20 @@ async function run() {
     // get all foods and show ui
     app.get("/api/v1/foods", async (req, res) => {
       let query = {};
-      // const searchValue = req.query.search;
+      let sort = {};
       const searchValue = req.query.search ? req.query.search.toLowerCase() : '';
       query.foodName = { $regex: new RegExp(searchValue, "i") };
-      console.log(searchValue)
-      const result = await foodsCollection.find(query).toArray();
+      const sortOrder = req.query.sort;
+      if (sortOrder === 'asc') {
+        sort.expDate = 1; 
+      } else if (sortOrder === 'desc') {
+        sort.expDate = -1; 
+      }
+      const result = await foodsCollection.find(query).sort(sort).toArray();
+     
       res.send(result);
     });
-
+   
     // manage my food request
     app.get("/api/v1/manage/single-food/:id", async (req, res) => {
       const id = req.params.id;
