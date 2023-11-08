@@ -2,16 +2,18 @@ const express = require("express");
 const app = express();
 var cors = require("cors");
 require("dotenv").config();
-const jwt = require('jsonwebtoken');
-const cookieParser = require('cookie-parser')
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 5000;
 
 // middleware
-app.use(cors({
-  origin:['http://localhost:5173'],
-  credentials:true
-}));
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(cookieParser());
 
@@ -28,20 +30,19 @@ const client = new MongoClient(uri, {
 
 // middleware for verify token
 
-const tokenVerify = (req,res,next) =>{
+const tokenVerify = (req, res, next) => {
   const token = req.cookies?.access_token;
-  if(!token){
-    return res.status(401).send({message:'Unauthorized'})
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized" });
   }
-  jwt.verify(token,process.env.ACCESS_TOKEN,(error,decoded)=>{
-    if(error){
-      res.status(403).send({message: 'Forbidden'})
+  jwt.verify(token, process.env.ACCESS_TOKEN, (error, decoded) => {
+    if (error) {
+      res.status(403).send({ message: "Forbidden" });
     }
     req.user = decoded;
     next();
-  })
-}
-
+  });
+};
 
 async function run() {
   try {
@@ -57,7 +58,7 @@ async function run() {
     app.get("/api/v1/foods/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
-      const result = await foodsCollection.findOne(query);  
+      const result = await foodsCollection.findOne(query);
       res.send(result);
     });
     // get all foods and show ui
@@ -69,28 +70,34 @@ async function run() {
     // manage my food request
     app.get("/api/v1/manage/single-food/:id", async (req, res) => {
       const id = req.params.id;
-      const query = { food_id : id };
-        const result = await foodsRequestCollection.findOne(query)
-        res.send(result);
-    
+      const query = { food_id: id };
+      const result = await foodsRequestCollection.findOne(query);
+      res.send(result);
     });
     // get specific food for manage food of used query email
-    app.get("/api/v1/manage-foods/", async (req, res) => {
-      const email = req.query.email;
-      const query = { donarEmail: email };
+    app.get("/api/v1/manage-foods/", tokenVerify, async (req, res) => {
+      if (req.query.email !== req.user.email) {
+        return res.status(403).send({ message: "Forbidden" });
+      }
+      let query = {};
+      if (req.query?.email) {
+        query = { donarEmail: req.query.email };
+      }
+      // const email = req.query.email;
+      // const query = { donarEmail: email };
       const result = await foodsCollection.find(query).toArray();
       res.send(result);
     });
 
     // get my booking data form request collection
 
-    app.get("/api/v1/myRequest/food",tokenVerify, async (req, res) => {
-      if(req.query.email !== req.user.email){
-        return res.status(403).send({message:'Forbidden'})
+    app.get("/api/v1/myRequest/food", tokenVerify, async (req, res) => {
+      if (req.query.email !== req.user.email) {
+        return res.status(403).send({ message: "Forbidden" });
       }
-      let query = {}
-      if(req.query.email){
-        query = {requesterEmail:req.query.email}
+      let query = {};
+      if (req.query.email) {
+        query = { requesterEmail: req.query.email };
       }
       const result = await foodsRequestCollection.find(query).toArray();
       res.send(result);
@@ -106,20 +113,31 @@ async function run() {
 
     // jwt token generate
 
-    app.post('/api/vi/jwt',(req,res)=>{
+    app.post("/api/vi/jwt", (req, res) => {
       const user = req.body;
-      console.log(user);
-      const token = jwt.sign(user,process.env.ACCESS_TOKEN,{
-        expiresIn:'1h'
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN, {
+        expiresIn: "1h",
       });
 
       res
-      .cookie('access_token',token,{
-        httpOnly:true,
-        secure:false,
-      })
-      .send({success:true})
-    })
+        .cookie("access_token", token, {
+          httpOnly: true,
+          secure: false,
+        })
+        .send({ success: true });
+    });
+
+    // cookie token clear after signOut
+
+    app.post("/api/vi/logOut", (req, res) => {
+      const user = req.body;
+      res
+        .clearCookie("access_token", {
+          maxAge: 0,
+          secure: false,
+        })
+        .send({ success: true });
+    });
 
     // foods item add
     app.post("/api/v1/foods", async (req, res) => {
@@ -132,23 +150,22 @@ async function run() {
     app.patch("/api/v1/update-status/:id", async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
-      const query = {food_id : id}
+      const query = { food_id: id };
       const status = req.body;
       const updateStatus = {
         $set: {
           status: status.status,
         },
       };
-      const result = await foodsCollection.updateOne(
-        filter,
+      const result = await foodsCollection.updateOne(filter, updateStatus);
+      const foodStatus = await foodsRequestCollection.updateOne(
+        query,
         updateStatus
       );
-      const foodStatus = await foodsRequestCollection.updateOne(query,updateStatus)
-      res.send({result,foodStatus});
+      res.send({ result, foodStatus });
     });
     // update status on foodsCollection
 
- 
     // save data from request
     app.post("/api/v1/request-foods", async (req, res) => {
       const food = req.body;
