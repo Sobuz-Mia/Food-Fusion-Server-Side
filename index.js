@@ -1,19 +1,27 @@
 const express = require("express");
-const app = express();
-var cors = require("cors");
+const cors = require("cors");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 5000;
+const app = express();
 
 // middleware
-app.use(
-  cors({
-    origin: ["http://localhost:5173"],
-    credentials: true,
-  })
-);
+// app.use(
+//   cors({
+//     origin: ["https://community-food-sharing-93a74.web.app","https://vermillion-klepon-715066.netlify.app","http://localhost:5000"],
+//     credentials: true,
+//   })
+// );
+const corsOptions = {
+  origin: 'http://localhost:5173https://vermillion-klepon-715066.netlify.app',
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+  optionsSuccessStatus: 201,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -110,6 +118,7 @@ async function run() {
       if (req.query.email) {
         query = { requesterEmail: req.query.email };
       }
+      console.log(query)
       const result = await foodsRequestCollection.find(query).toArray();
       res.send(result);
     });
@@ -124,16 +133,17 @@ async function run() {
 
     // jwt token generate
 
-    app.post("/api/vi/jwt", (req, res) => {
+    app.post("/api/vi/jwt", async(req, res) => {
       const user = req.body;
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN, {
+      const token = await jwt.sign(user, process.env.ACCESS_TOKEN, {
         expiresIn: "1h",
       });
 
       res
         .cookie("access_token", token, {
           httpOnly: true,
-          secure: false,
+          secure: process.env.NODE_ENV === "production" ? true : false,
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
         })
         .send({ success: true });
     });
@@ -145,7 +155,8 @@ async function run() {
       res
         .clearCookie("access_token", {
           maxAge: 0,
-          secure: false,
+          secure: process.env.NODE_ENV === "production" ? true : false,
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",    
         })
         .send({ success: true });
     });
@@ -231,5 +242,5 @@ app.get("/", (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`server listing on port ${port}`);
+  console.log(`Server Listing on port ${port}`);
 });
